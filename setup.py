@@ -30,9 +30,11 @@ setup(
         "anytree",
         "cloudpickle",
         "h5py",
+        "matplotlib",
         "numpy>=1.19.0",
         "scikit-learn",
         "scipy",
+        "seaborn",
         "sympy",
         "synmod",
         "xxhash"
@@ -45,6 +47,6 @@ setup(
     packages=find_packages(),
     python_requires=">= 3.6",
     url="https://github.com/cloudbopper/anamod",
-    version="0.1.1",
+    version="0.1.2",
     zip_safe=True,
 )

@@ -106,3 +106,29 @@ def wilcoxon_test(x, y, alternative):
     if alternative == constants.GREATER:
         return norm.sf(z)
     return 2 * min(norm.cdf(z), norm.sf(z))  # two-sided
+
+
+def bh_procedure(pvalues, significance_level):
+    """Return adjusted p-values and rejected hypotheses computed according to Benjamini Hochberg procedure"""
+    # pylint: disable = invalid-name
+    m = len(pvalues)
+    hypotheses = list(zip(range(m), pvalues))
+    hypotheses.sort(key=lambda x: x[1])
+    max_idx = 0
+    adjusted_pvalues = np.ones(m)
+    rejected_hypotheses = [False] * m
+    for idx, hypothesis in enumerate(hypotheses):
+        _, pvalue = hypothesis
+        i = idx + 1
+        adjusted_pvalues[idx] = m / i * pvalue
+        critical_constant = i * significance_level / m
+        if pvalue < critical_constant:
+            max_idx = i
+    for idx in range(max_idx):
+        rejected_hypotheses[idx] = True
+    for idx in reversed(range(m - 1)):
+        # Adjusted pvalues - see http://www.biostathandbook.com/multiplecomparisons.html
+        adjusted_pvalues[idx] = min(adjusted_pvalues[idx], adjusted_pvalues[idx + 1])
+    data = sorted(zip(hypotheses, adjusted_pvalues, rejected_hypotheses), key=lambda elem: elem[0][0])
+    _, adjusted_pvalues, rejected_hypotheses = zip(*data)
+    return adjusted_pvalues, rejected_hypotheses

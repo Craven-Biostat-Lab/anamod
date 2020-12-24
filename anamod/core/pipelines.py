@@ -13,8 +13,8 @@ import cloudpickle
 import numpy as np
 
 from anamod.core import constants, worker
+from anamod.core.compute_p_values import bh_procedure
 from anamod.core.utils import CondorJobWrapper
-from anamod.fdr.fdr_algorithms import bh_procedure
 
 
 class SerialPipeline():

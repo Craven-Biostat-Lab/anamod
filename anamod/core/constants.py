@@ -5,10 +5,16 @@
 # Arguments
 HIERARCHICAL = "hierarchical"
 
+# Features
+NAME = "Name"
+DESCRIPTION = "Description"
+IMPORTANT = "Important"
+IMPORTANCE_SCORE = "Importance Score"
+WINDOW_IMPORTANT = "Window Important"
+WINDOW_IMPORTANCE_SCORE = "Window Importance Score"
+ORDERING_IMPORTANT = "Ordering Important"
+
 # Hierarchy
-NODE_NAME = "name"
-PARENT_NAME = "parent_name"
-DESCRIPTION = "description"
 CLUSTER_FROM_DATA = "cluster_from_data"
 RANDOM = "random"
 FLAT = "flat"
@@ -37,6 +43,9 @@ QUEUE, REMOVE, QUERY, HISTORY = ("queue", "remove", "query", "history")  # Condo
 # Master I/O
 MODEL_FILENAME = "model.cpkl"
 DATA_FILENAME = "data.hdf5"
+FEATURE_IMPORTANCE = "feature_importance"
+FEATURE_IMPORTANCE_HIERARCHY = f"{FEATURE_IMPORTANCE}_hierarchy"
+FEATURE_IMPORTANCE_WINDOWS = f"{FEATURE_IMPORTANCE}_windows"
 
 # Worker I/O
 INPUT_FEATURES_FILENAME = "{}/input_features_worker_{}.cpkl"

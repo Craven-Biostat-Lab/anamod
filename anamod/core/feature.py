@@ -30,7 +30,10 @@ class Feature(anytree.Node):
     aliases = dict(
         overall_pvalue="pvalue",
         overall_important="important",
-        overall_effect_size="effect_size"
+        overall_effect_size="effect_size",
+        importance_score="effect_size",
+        window_importance_score="window_effect_size",
+        window="temporal_window"
     )
 
     def __setattr__(self, name, value):

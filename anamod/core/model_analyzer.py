@@ -32,6 +32,9 @@ COMMON_DOC = (
 
                 If :attr:`feature_hierarchy` is provided, names from that will be used instead.
 
+            visualize: bool, default: True
+                Flag to control output visualization.
+
             seed: int, default: {constants.SEED}
                 Seed for random number generator (used to order features to be analyzed).
 
@@ -53,7 +56,7 @@ CONDOR_DOC = (
 
             condor: bool, default: False
                 Flag to enable parallelization using HTCondor.
-                Requires package htcondor to be installed (TODO: ref).
+                Requires PyPI package htcondor to be installed.
 
             shared_filesystem: bool, default: False
                 Flag to indicate a shared filesystem, making
@@ -66,6 +69,7 @@ CONDOR_DOC = (
             features_per_worker: int, default: 1
                 Number of features to test per condor job. Fewer features per job reduces job
                 load at the cost of more jobs.
+                TODO: If none provided, this will be chosen automatically to create up to 100 jobs.
 
             memory_requirement: int, default: 8
                 Memory requirement in GB
@@ -76,9 +80,9 @@ CONDOR_DOC = (
             model_loader_filename: str, default: None
                 Python script that provides functions to load/save model.
                 Required for condor since each job runs in its own environment.
-                If none is provided, cloudpickle will be used - see model_loader_ for a template (TODO: fix ref)
+                If none is provided, cloudpickle will be used - see model_loader_ for a template.
 
-                .. _model_loader: py:mod:anamod.core.model_loader
+                .. _model_loader: https://github.com/cloudbopper/anamod/blob/master/anamod/core/model_loader.py
 
             avoid_bad_hosts: bool, default: False
                 Avoid condor hosts that intermittently give issues.
@@ -100,9 +104,10 @@ class ModelAnalyzer(ABC):
         **Required parameters:**
 
             model: object
-                A model object that provides the required interface (TODO: add/cite interface documentation).
+                A model object that provides a 'predict' function that returns the model's predictions on input data,
+                i.e. predictions = model.predict(data)
 
-                This may be a simple wrapper around, say, a scikit-learn or Tensorflow model (TODO: example).
+                For instance, this may be a simple wrapper around a scikit-learn or Tensorflow model.
 
             data: 2D numpy array
                 Test data matrix of instances **x** features.
@@ -144,6 +149,7 @@ class ModelAnalyzer(ABC):
         self.num_permutations = self.process_keyword_arg("num_permutations", constants.DEFAULT_NUM_PERMUTATIONS)
         self.permutation_test_statistic = self.process_keyword_arg("permutation_test_statistic", constants.MEAN_LOSS)
         self.feature_names = self.process_keyword_arg("feature_names", None)
+        self.visualize = self.process_keyword_arg("visualize", True)
         self.seed = self.process_keyword_arg("seed", constants.SEED)
         self.loss_function = self.process_keyword_arg("loss_function", None, constants.CHOICES_LOSS_FUNCTIONS)
         self.set_loss_function(targets)
@@ -195,12 +201,25 @@ class ModelAnalyzer(ABC):
 
     def analyze(self):
         """
-        Analyze model and return analyzed features.
+        Performs feature importance analysis of model and returns feature objects.
+
+        In addition, writes out:
+
+        * a table summarizing feature importance: <output_dir>/feature_importance.csv
+
+        * a visualization of the feature importance hierarchy: <output_dir>/feature_importance_hierarchy.png
 
         Returns
         -------
         features: list <feature object>
-            List of feature objects with importance analysis information. TODO: Describe feature objects
+
+            List of feature objects with feature importance attributes:
+
+            * feature.important: flag to indicate whether or not the feature is important
+
+            * feature.importance_score: degree of importance
+
+            * feature.pvalue: p-value for importance test
         """
         features = master.main(self)
         return features
@@ -303,9 +322,10 @@ class TemporalModelAnalyzer(ModelAnalyzer):
         **Required parameters:**
 
             model: object
-                A model object that provides the required interface (TODO: add/cite interface documentation).
+                A model object that provides a 'predict' function that returns the model's predictions on input data,
+                i.e. predictions = model.predict(data)
 
-                This may be a simple wrapper around, say, a scikit-learn or Tensorflow model (TODO: example).
+                For instance, this may be a simple wrapper around a scikit-learn or Tensorflow model.
 
             data: 3D numpy array
                 Test data tensor of instances **x** features **x** sequences.
@@ -337,3 +357,44 @@ class TemporalModelAnalyzer(ModelAnalyzer):
                                                                 constants.CHOICES_WINDOW_SEARCH_ALGORITHM)
         # TODO: Automatic proportional selection of window effect size threshold w.r.t. sequence length
         self.window_effect_size_threshold = self.process_keyword_arg("window_effect_size_threshold", 0.01)
+
+    def analyze(self):
+        """
+        Performs feature importance analysis of model and returns feature objects.
+
+        In addition, writes out:
+
+        * a table summarizing feature importance: <output_dir>/feature_importance.csv
+
+        * a visualization of important windows: <output_dir>/feature_importance_windows.png
+
+        Returns
+        -------
+        features: list <feature object>
+
+            List of feature objects with feature importance attributes:
+
+            * feature.important: flag to indicate whether the feature is important
+
+            * feature.importance_score: degree of importance
+
+            * feature.pvalue: p-value for importance test
+
+            * feature.ordering_important: flag to indicate whether the feature's overall ordering is important
+
+            * feature.ordering_pvalue: p-value for overall ordering importance test
+
+            * feature.window: (left, right) timestep boundaries of important window (0-indexed)
+
+            * feature.window_important: flag to indicate whether the window is important
+
+            * feature.window_importance_score: degree of importance of window
+
+            * feature.window_pvalue: p-value for window importance test
+
+            * feature.window_ordering_important: flag to indicate whether ordering within the window is important
+
+            * feature.window_ordering_pvalue: p-value for window ordering importance test
+        """
+        # pylint: disable = useless-super-delegation
+        return super().analyze()

@@ -1,8 +1,8 @@
 .. highlight:: text
 
-=====
-Usage
-=====
+===
+API
+===
 
 .. autoclass:: anamod.core.model_analyzer.ModelAnalyzer
    :members: analyze

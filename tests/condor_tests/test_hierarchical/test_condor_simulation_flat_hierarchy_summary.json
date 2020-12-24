@@ -14,10 +14,10 @@
   },
   "results": {
     "FDR": 0.0,
-    "Power": 0.5,
+    "Power": 1.0,
     "Base_Features_FDR": 0.0,
-    "Base_Features_Power": 0.5,
-    "Interactions_FDR": 1.0,
-    "Interactions_Power": 0.0
+    "Base_Features_Power": 1.0,
+    "overall_scores_corr": 0.9990245008,
+    "overall_relevant_scores_corr": 0.9987213192
   }
 }

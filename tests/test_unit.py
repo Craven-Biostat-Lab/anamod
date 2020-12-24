@@ -5,7 +5,7 @@ import random
 import numpy as np
 import pytest
 
-from anamod.fdr.fdr_algorithms import bh_procedure
+from anamod.core.compute_p_values import bh_procedure
 from anamod import ModelAnalyzer
 
 

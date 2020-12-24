@@ -1,92 +1,87 @@
 """Evaluate simulation results"""
 
-import csv
-import sys
-from unittest.mock import patch
 import warnings
 
 import anytree
-from anytree.importer import JsonImporter
 import numpy as np
 from scipy.stats import pearsonr
 from sklearn.metrics import balanced_accuracy_score, precision_recall_fscore_support
 from synmod.constants import REGRESSOR
 
 from anamod.core import constants
-from anamod.core.constants import FDR, POWER, BASE_FEATURES_FDR, BASE_FEATURES_POWER, INTERACTIONS_FDR, INTERACTIONS_POWER
+from anamod.core.constants import FDR, POWER, BASE_FEATURES_FDR, BASE_FEATURES_POWER
 from anamod.core.constants import ORDERING_ALL_IMPORTANT_FDR, ORDERING_ALL_IMPORTANT_POWER
 from anamod.core.constants import ORDERING_IDENTIFIED_IMPORTANT_FDR, ORDERING_IDENTIFIED_IMPORTANT_POWER
 from anamod.core.constants import AVERAGE_WINDOW_FDR, AVERAGE_WINDOW_POWER, WINDOW_OVERLAP
 from anamod.core.constants import WINDOW_IMPORTANT_FDR, WINDOW_IMPORTANT_POWER, WINDOW_ORDERING_IMPORTANT_FDR, WINDOW_ORDERING_IMPORTANT_POWER
 from anamod.core.constants import OVERALL_SCORES_CORR, WINDOW_SCORES_CORR, OVERALL_RELEVANT_SCORES_CORR, WINDOW_RELEVANT_SCORES_CORR
-from anamod.fdr import hierarchical_fdr_control
 
 
-def compare_with_ground_truth(args, hierarchy_root):
-    """Compare results from anamod with ground truth results"""
-    # Generate ground truth results
-    # Write hierarchical FDR input file for ground truth values
-    args.logger.info("Compare anamod results to ground truth")
-    input_filename = "%s/ground_truth_pvalues.csv" % args.output_dir
-    with open(input_filename, "w", newline="") as input_file:
-        writer = csv.writer(input_file)
-        writer.writerow([constants.NODE_NAME, constants.PARENT_NAME, constants.PVALUE, constants.DESCRIPTION])
-        for node in anytree.PostOrderIter(hierarchy_root):
-            parent_name = node.parent.name if node.parent else ""
-            # Decide p-values based on rough heuristic for relevance
-            node.pvalue = 1.0
-            if node.description != constants.IRRELEVANT:
-                if node.is_leaf:
-                    node.pvalue = 0.001
-                    if node.poly_coeff:
-                        node.pvalue = min(node.pvalue, 1e-10 / (node.poly_coeff * node.bin_prob) ** 3)
-                else:
-                    node.pvalue = 0.999 * min([child.pvalue for child in node.children])
-            writer.writerow([node.name, parent_name, node.pvalue, node.description])
-    # Generate hierarchical FDR results for ground truth values
-    ground_truth_dir = "%s/ground_truth_fdr" % args.output_dir
-    cmd = ("python -m anamod.fdr.hierarchical_fdr_control -output_dir %s -procedure yekutieli "
-           "-rectangle_leaves 1 %s" % (ground_truth_dir, input_filename))
-    args.logger.info("Running cmd: %s" % cmd)
-    pass_args = cmd.split()[2:]
-    with patch.object(sys, 'argv', pass_args):
-        hierarchical_fdr_control.main()
-    # Compare results
-    ground_truth_outputs_filename = "%s/%s.png" % (ground_truth_dir, constants.TREE)
-    args.logger.info("Ground truth results: %s" % ground_truth_outputs_filename)
-    anamod_outputs_filename = "%s/%s/%s.png" % (args.output_dir, constants.HIERARCHICAL_FDR_DIR, constants.TREE)
-    args.logger.info("anamod results: %s" % anamod_outputs_filename)
+def evaluate(args, sfeatures, afeatures):
+    """Evaluate results"""
+    if args.analysis_type == constants.HIERARCHICAL:
+        return evaluate_hierarchical(args, sfeatures, afeatures)
+    return evaluate_temporal(args, sfeatures, afeatures)
 
 
-def evaluate_hierarchical(args, relevant_feature_map, feature_id_map):
+def get_precision_recall(true, inferred):
+    """Get precision and recall given vectors of true and inferred values"""
+    precision, recall, _, _ = precision_recall_fscore_support(true, inferred, average="binary", zero_division=1)
+    return precision, recall
+
+
+def evaluate_hierarchical(args, sfeatures, afeatures):
     """
-    Evaluate hierarchical analysis results - obtain power/FDR measures for all nodes/base features/interactions
+    Evaluate hierarchical analysis results - obtain power/FDR measures for all nodes/base features
     """
     # pylint: disable = too-many-locals
-    # TODO: Evaluate CORR scores
-    def get_relevant_rejected(nodes, leaves=False):
-        """Get set of relevant and rejected nodes"""
-        if leaves:
-            nodes = [node for node in nodes if node.is_leaf]
-        relevant = [0 if node.description == constants.IRRELEVANT else 1 for node in nodes]
-        rejected = [1 if node.rejected else 0 for node in nodes]
-        return relevant, rejected
+    # Map features in hierarchy to original features and identify ground-truth importances/scores
+    sfeatures_map = {sfeature.name: sfeature for sfeature in sfeatures}
+    importance_map = {}
+    score_map = {}
+    for node in anytree.PostOrderIter(afeatures[0].root):
+        if node.is_leaf:
+            sfeature_name = str(node.idx[0])
+            importance_map[node.name] = sfeatures_map[sfeature_name].important
+            score_map[node.name] = sfeatures_map[sfeature_name].effect_size
+        else:
+            importance_map[node.name] = any([importance_map[child.name] for child in node.children])
+    # Overall FDR/power
+    important = np.zeros(len(afeatures))
+    inferred_important = np.zeros(len(afeatures))
+    for idx, afeature in enumerate(afeatures):
+        important[idx] = importance_map[afeature.name]
+        inferred_important[idx] = afeature.important
+    imp_precision, imp_recall = get_precision_recall(important, inferred_important)
+    # Base features FDR/power
+    base_features = list(filter(lambda node: node.is_leaf, afeatures))
+    base_important = np.zeros(len(base_features))
+    inferred_base_important = np.zeros(len(base_features))
+    for idx, base_feature in enumerate(base_features):
+        base_important[idx] = importance_map[base_feature.name]
+        inferred_base_important[idx] = base_feature.important
+    base_imp_precision, base_imp_recall = get_precision_recall(base_important, inferred_base_important)
+    # Importance scores for base features
+    overall_scores_corr, overall_relevant_scores_corr = (1.0, 1.0)
+    if args.model_type == REGRESSOR:
+        scores = np.zeros(len(base_features))
+        inferred_scores = np.zeros(len(base_features))
+        for idx, base_feature in enumerate(base_features):
+            scores[idx] = score_map[base_feature.name]
+            inferred_scores[idx] = base_feature.importance_score
+        relevant_base_features = list(filter(lambda node: importance_map[node.name], base_features))
+        relevant_scores = np.zeros(len(relevant_base_features))
+        relevant_inferred_scores = np.zeros(len(relevant_base_features))
+        for idx, relevant_base_feature in enumerate(relevant_base_features):
+            relevant_scores[idx] = score_map[relevant_base_feature.name]
+            relevant_inferred_scores[idx] = relevant_base_feature.importance_score
+        overall_scores_corr = pearsonr(scores, inferred_scores)[0] if len(scores) >= 2 else 1
+        overall_relevant_scores_corr = pearsonr(relevant_scores, relevant_inferred_scores)[0] if len(relevant_scores) >= 2 else 1
 
-    tree_filename = "%s/%s/%s.json" % (args.output_dir, constants.HIERARCHICAL_FDR_DIR, constants.HIERARCHICAL_FDR_OUTPUTS)
-    with open(tree_filename, "r") as tree_file:
-        tree = JsonImporter().read(tree_file)
-        nodes = list(filter(lambda node: node.name != constants.DUMMY_ROOT, anytree.PreOrderIter(tree)))
-        # All nodes FDR/power
-        relevant, rejected = get_relevant_rejected(nodes)
-        precision, recall, _, _ = precision_recall_fscore_support(relevant, rejected, average="binary", zero_division=1)
-        # Base features FDR/power
-        bf_relevant, bf_rejected = get_relevant_rejected(nodes, leaves=True)
-        bf_precision, bf_recall, _, _ = precision_recall_fscore_support(bf_relevant, bf_rejected, average="binary", zero_division=1)
-        # Interactions FDR/power
-        interaction_precision, interaction_recall = get_precision_recall_interactions(args, relevant_feature_map, feature_id_map)
-        return {FDR: 1 - precision, POWER: recall,
-                BASE_FEATURES_FDR: 1 - bf_precision, BASE_FEATURES_POWER: bf_recall,
-                INTERACTIONS_FDR: 1 - interaction_precision, INTERACTIONS_POWER: interaction_recall}
+    vals = {FDR: 1 - imp_precision, POWER: imp_recall,
+            BASE_FEATURES_FDR: 1 - base_imp_precision, BASE_FEATURES_POWER: base_imp_recall,
+            OVERALL_SCORES_CORR: overall_scores_corr, OVERALL_RELEVANT_SCORES_CORR: overall_relevant_scores_corr}
+    return {key: value if isinstance(value, dict) else round(value, 10) for key, value in vals.items()}  # Round values to avoid FP discrepancies
 
 
 def evaluate_temporal(args, sfeatures, afeatures):
@@ -129,12 +124,6 @@ def evaluate_temporal(args, sfeatures, afeatures):
                 inferred_windows[idx][left: right + 1] = 1
             inferred_window_ordering_important[idx] = afeature.window_ordering_important
             inferred_ordering_important[idx] = afeature.ordering_important
-
-    # Get scores
-    def get_precision_recall(true, inferred):
-        """Get precision and recall given true and inferred values"""
-        precision, recall, _, _ = precision_recall_fscore_support(true, inferred, average="binary", zero_division=1)
-        return precision, recall
 
     imp_precision, imp_recall = get_precision_recall(important, inferred_important)
     ordering_all_precision, ordering_all_recall = get_precision_recall(ordering_important, inferred_ordering_important)
@@ -191,45 +180,3 @@ def evaluate_temporal(args, sfeatures, afeatures):
             OVERALL_SCORES_CORR: overall_scores_corr, WINDOW_SCORES_CORR: window_scores_corr,
             OVERALL_RELEVANT_SCORES_CORR: overall_relevant_scores_corr, WINDOW_RELEVANT_SCORES_CORR: window_relevant_scores_corr}
     return {key: value if isinstance(value, dict) else round(value, 10) for key, value in vals.items()}  # Round values to avoid FP discrepancies
-
-
-def get_precision_recall_interactions(args, relevant_feature_map, feature_id_map):
-    """Computes precision (1 - FDR) and recall (power) for detecting interactions"""
-    # pylint: disable = invalid-name, too-many-locals
-    # The set of all possible interactions might be very big, so don't construct label vector for all
-    # possible interactions - compute precision/recall from basics
-    # TODO: alter to handle higher-order interactions
-    if not args.analyze_interactions:
-        return (0.0, 0.0)
-    true_interactions = {key for key in relevant_feature_map.keys() if len(key) > 1}
-    tree_filename = "%s/%s/%s.json" % (args.output_dir, constants.INTERACTIONS_FDR_DIR, constants.HIERARCHICAL_FDR_OUTPUTS)
-    tp = 0
-    fp = 0
-    tn = 0
-    fn = 0
-    tested = set()
-    with open(tree_filename, "r") as tree_file:
-        tree = JsonImporter().read(tree_file)
-        # Two-level tree with tested interactions on level 2
-        for node in tree.children:
-            pair = frozenset({int(idx) for idx in node.name.split(" + ")})
-            if feature_id_map:
-                pair = frozenset({feature_id_map[visual_id] for visual_id in pair})
-            tested.add(pair)
-            if node.rejected:
-                if relevant_feature_map.get(pair):
-                    tp += 1
-                else:
-                    fp += 1
-            else:
-                if relevant_feature_map.get(pair):
-                    fn += 1
-                else:
-                    tn += 1
-    if not tp > 0:
-        return (0.0, 0.0)
-    missed = true_interactions.difference(tested)
-    fn += len(missed)
-    precision = tp / (tp + fp)
-    recall = tp / (tp + fn)
-    return precision, recall

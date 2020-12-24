@@ -3,7 +3,7 @@ anamod
 ========
 
 .. image:: https://img.shields.io/travis/cloudbopper/anamod.svg
-        :target: https://travis-ci.org/cloudbopper/anamod
+        :target: https://travis-ci.com/cloudbopper/anamod
         :alt: Build status
 
 .. image:: https://readthedocs.org/projects/anamod/badge/?version=latest
@@ -29,16 +29,16 @@ models. At a high level, ``anamod`` implements the following algorithms:
     In Proceedings of the AAAI Conference on Artificial Intelligence, 33:4155–63.
     https://doi.org/10.1609/aaai.v33i01.33014155.
 
-* Given a learned temporal or sequence model, it identifies important temporal features and interactions.
+* Given a learned temporal or sequence model, it identifies its important features, windows as well as its dependence on temporal ordering.
   More details may be found in the following paper::
 
-    [In preparation]
+    [Under review]
 
-``anamod`` supersedes and contains the functionality of the existing library ``mihifepe``, based on the first paper
+``anamod`` supersedes the library ``mihifepe``, based on the first paper
 (https://github.com/Craven-Biostat-Lab/mihifepe).
-``mihifepe`` is maintained for legacy reasons but will not receive further significant updates.
+``mihifepe`` is maintained for legacy reasons but will not receive further updates.
 
-``anamod`` uses the ``synmod`` library to generate synthetic data, including time-series data, to test and validate the algorithms
+``anamod`` uses the library ``synmod`` to generate synthetic data, including time-series data, to test and validate the algorithms
 (https://github.com/cloudbopper/synmod).
 
 
@@ -46,9 +46,9 @@ models. At a high level, ``anamod`` implements the following algorithms:
 Usage
 -----
 
-See detailed API documentation at https://anamod.readthedocs.io/en/latest/usage.html. Basic usage:
+See detailed API documentation here_. Here are some examples of how the package may be used:
 
-To analyze a scikit-learn binary classification model::
+Analyzing a scikit-learn binary classification model::
 
     # Train a model
     from sklearn.linear_model import LogisticRegression
@@ -60,16 +60,17 @@ To analyze a scikit-learn binary classification model::
 
     # Analyze the model
     import anamod
+    output_dir = "example_sklearn_classifier"
     model.predict = lambda X: model.predict_proba(X)[:, 1]  # To return a vector of probabilities when model.predict is called
-    analyzer = anamod.ModelAnalyzer(model, X, y, feature_names=feature_names)
+    analyzer = anamod.ModelAnalyzer(model, X, y, feature_names=feature_names, output_dir=output_dir)
     features = analyzer.analyze()
 
     # Show list of important features sorted in decreasing order of importance score, along with importance score and model coefficient
     from pprint import pprint
-    important_features = sorted([feature for feature in features if feature.important], key=lambda feature: feature.effect_size, reverse=True)
-    pprint([(feature.name, feature.effect_size, model.coef_[0][feature.idx[0]]) for feature in important_features])
+    important_features = sorted([feature for feature in features if feature.important], key=lambda feature: feature.importance_score, reverse=True)
+    pprint([(feature.name, feature.importance_score, model.coef_[0][feature.idx[0]]) for feature in important_features])
 
-To analyze a scikit-learn regression model::
+Analyzing a scikit-learn regression model::
 
     # Train a model
     from sklearn.linear_model import Ridge
@@ -81,24 +82,93 @@ To analyze a scikit-learn regression model::
 
     # Analyze the model
     import anamod
-    analyzer = anamod.ModelAnalyzer(model, X, y, feature_names=feature_names)
+    output_dir = "example_sklearn_regressor"
+    analyzer = anamod.ModelAnalyzer(model, X, y, feature_names=feature_names, output_dir=output_dir)
     features = analyzer.analyze()
 
     # Show list of important features sorted in decreasing order of importance score, along with importance score and model coefficient
     from pprint import pprint
-    important_features = sorted([feature for feature in features if feature.important], key=lambda feature: feature.effect_size, reverse=True)
-    pprint([(feature.name, feature.effect_size, model.coef_[feature.idx[0]]) for feature in important_features])
+    important_features = sorted([feature for feature in features if feature.important], key=lambda feature: feature.importance_score, reverse=True)
+    pprint([(feature.name, feature.importance_score, model.coef_[feature.idx[0]]) for feature in important_features])
+
+The outputs can be visualized in other ways as well. To show a table indicating feature importance::
+
+    import subprocess
+    subprocess.run(["open", f"{output_dir}/feature_importance.csv"], check=True)
+
+.. image:: images/sklearn-table.png
+
+To visualize the feature importance hierarchy (since no hierarchy is provided in this case, a flat hierarchy is automatically created)::
+
+    subprocess.run(["open", f"{output_dir}/feature_importance_hierarchy.png"], check=True)
+
+.. image:: images/sklearn-tree.png
+
+Analyzing a synthentic model with a hierarchy generated using hierarchical clustering::
+
+    # Generate synthetic data and model
+    import synmod
+    output_dir = "example_synthetic_non_temporal"
+    num_features = 10
+    synthesized_features, X, model = synmod.synthesize(output_dir=output_dir, num_instances=100, seed=100,
+                                                        num_features=num_features, fraction_relevant_features=0.5,
+                                                        synthesis_type="static", model_type="regressor")
+    y = model.predict(X, labels=True)
+
+    # Generate hierarchy using hierarchical clustering
+    from types import SimpleNamespace
+    from anamod.simulation import simulation
+    args = SimpleNamespace(hierarchy_type="cluster_from_data", contiguous_node_names=True, num_features=num_features)
+    feature_hierarchy, _ = simulation.gen_hierarchy(args, X)
+
+    # Analyze the model
+    from anamod import ModelAnalyzer
+    analyzer = ModelAnalyzer(model, X, y, feature_hierarchy=feature_hierarchy, output_dir=output_dir)
+    features = analyzer.analyze()
+
+    # Visualize feature importance hierarchy
+    import subprocess
+    subprocess.run(["open", f"{output_dir}/feature_importance_hierarchy.png"], check=True)
+
+.. image:: images/synthetic-tree.png
+
+Analyzing a synthetic temporal model::
+
+    # Generate synthetic data and model
+    import synmod
+    output_dir = "example_synthetic_temporal"
+    num_features = 10
+    synthesized_features, X, model = synmod.synthesize(output_dir=output_dir, num_instances=100, seed=100,
+                                                        num_features=10, fraction_relevant_features=0.5,
+                                                        synthesis_type="temporal", sequence_length=20, model_type="regressor")
+    y = model.predict(X, labels=True)
+
+    # Analyze the model
+    from anamod import TemporalModelAnalyzer
+    analyzer = TemporalModelAnalyzer(model, X, y, output_dir=output_dir)
+    features = analyzer.analyze()
+
+    # Visualize feature importance for temporal windows
+    import subprocess
+    subprocess.run(["open", f"{output_dir}/feature_importance_windows.png"], check=True)
+
+.. image:: images/synthetic-windows.png
+
+The package supports parallelization using HTCondor_, which can significantly improve running time for large models.
+If HTCondor is available on your system, you can enable it by providing the "condor" keyword argument. The python
+package ``htcondor`` must be installed (see Installation). Additional condor options may be viewed in the API documentation::
+
+    analyzer = anamod.ModelAnalyzer(model, X, y, condor=True)
+
+.. _here: https://anamod.readthedocs.io/en/latest/usage.html
+.. _HTCondor: https://research.cs.wisc.edu/htcondor/
 
 ------------
 Installation
 ------------
 
 The recommended installation method is via `virtual environments`_ and pip_.
-In addition, you also need graphviz_ installed on your system.
-
-When making the virtual environment, specify python3 (3.5+) as the python executable::
-
-    mkvirtualenv -p python3 anamod
+In addition, you also need graphviz_ installed on your system to visualize feature importance hierarchies.
 
 To install the latest stable release::
 
@@ -108,17 +178,20 @@ Or to install the latest development version from GitHub::
 
     pip install git+https://github.com/cloudbopper/anamod.git@master#egg=anamod
 
+If HTCondor is available on your platform, install the ``htcondor`` PyPi package using pip. To enable it, see Usage::
+
+    pip install htcondor
+
 .. _pip: https://pip.pypa.io/
-.. _virtual environments: https://python-guide-cn.readthedocs.io/en/latest/dev/virtualenvs.html
+.. _virtual environments: https://docs.python.org/3/tutorial/venv.html
 .. _graphviz: https://www.graphviz.org/
 
 -----------
 Development
 -----------
 
-Collaborations and contributions are welcome. If you are interested in helping with development, please take a look at:
-
-https://anamod.readthedocs.io/en/latest/contributing.html
+Collaborations and contributions are welcome. If you are interested in helping with development,
+please take a look at https://anamod.readthedocs.io/en/latest/contributing.html.
 
 -------
 License

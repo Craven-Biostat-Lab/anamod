@@ -35,6 +35,7 @@ def main():
     common.add_argument("-analysis_type", help="Type of model analysis to perform",
                         default=constants.TEMPORAL, choices=[constants.TEMPORAL, constants.HIERARCHICAL])
     common.add_argument("-seed", type=int, default=constants.SEED)
+    common.add_argument("-visualize", type=strtobool, default=False)
     common.add_argument("-num_instances", type=int, default=200)
     common.add_argument("-num_features", type=int, default=10)
     common.add_argument("-fraction_relevant_features", type=float, default=.2)
@@ -99,8 +100,8 @@ def pipeline(args, pass_args):
     """Simulation pipeline"""
     args.logger.info("Begin anamod simulation with args: %s" % args)
     synthesized_features, data, model_wrapper, targets = synthesize(args)
-    analyzed_features, hierarchy_root, feature_id_map = analyze(args, pass_args, synthesized_features, data, model_wrapper, targets)
-    results, model_wrapper = evaluate(args, synthesized_features, model_wrapper, analyzed_features, hierarchy_root, feature_id_map)
+    analyzed_features = analyze(args, pass_args, synthesized_features, data, model_wrapper, targets)
+    results, model_wrapper = evaluate(args, synthesized_features, model_wrapper, analyzed_features)
     summary = write_summary(args, model_wrapper, results)
     args.logger.info("End anamod simulation")
     return summary
@@ -155,20 +156,20 @@ def analyze(args, pass_args, synthesized_features, data, model_wrapper, targets)
     """Analyze model"""
     # pylint: disable = too-many-arguments
     if args.synthesize_only or args.evaluate_only:
-        return (None, None, None)
-    hierarchy_root, feature_id_map = (None, None)
+        return (None, None)
+    hierarchy_root = None
     if args.analysis_type == constants.HIERARCHICAL:
         # Generate hierarchy if required
-        hierarchy_root, feature_id_map = gen_hierarchy(args, data)
+        hierarchy_root, _ = gen_hierarchy(args, data)
         if hierarchy_root:
             # Update hierarchy descriptions for future visualization
             update_hierarchy_relevance(hierarchy_root, model_wrapper.ground_truth_model.relevant_feature_map, synthesized_features)
     # Invoke feature importance algorithm
     analyzed_features = run_anamod(args, pass_args, data, model_wrapper, targets, hierarchy_root)
-    return analyzed_features, hierarchy_root, feature_id_map
+    return analyzed_features
 
 
-def evaluate(args, synthesized_features, model_wrapper, analyzed_features, hierarchy_root, feature_id_map):
+def evaluate(args, synthesized_features, model_wrapper, analyzed_features):
     """Evaluate results of analysis"""
     # pylint: disable = too-many-arguments
     if args.synthesize_only:
@@ -177,16 +178,8 @@ def evaluate(args, synthesized_features, model_wrapper, analyzed_features, hiera
         synthesized_features, model_wrapper, analyzed_features = read_outputs(args.output_dir)
     else:
         write_outputs(args.output_dir, synthesized_features, model_wrapper, analyzed_features)
-    if args.analysis_type == constants.HIERARCHICAL:
-        # Compare anamod outputs with ground truth outputs
-        if hierarchy_root:
-            # TODO: Only works for non-flat hierarchy
-            evaluation.compare_with_ground_truth(args, hierarchy_root)
-        # Evaluate anamod outputs - power/FDR for all nodes/outer nodes/base features
-        results = evaluation.evaluate_hierarchical(args, model_wrapper.ground_truth_model.relevant_feature_map, feature_id_map)
-    else:
-        # TODO: should have similar mode of parsing outputs for both analyses
-        results = evaluation.evaluate_temporal(args, synthesized_features, analyzed_features)
+    # Evaluate anamod outputs - power/FDR, importance score correlations
+    results = evaluation.evaluate(args, synthesized_features, analyzed_features)
     return results, model_wrapper
 
 
@@ -306,7 +299,7 @@ def gen_hierarchy(args, clustering_data):
     if args.hierarchy_type == constants.FLAT:
         args.contiguous_node_names = False  # Flat hierarchy should be automatically created; do not re-index hierarchy
     elif args.hierarchy_type == constants.CLUSTER_FROM_DATA:
-        clusters = cluster_data(args, clustering_data)
+        clusters = cluster_data(clustering_data)
         hierarchy_root = gen_hierarchy_from_clusters(args, clusters)
     elif args.hierarchy_type == constants.RANDOM:
         hierarchy_root = gen_random_hierarchy(args)
@@ -353,12 +346,10 @@ def gen_random_hierarchy(args):
     return hierarchy_root
 
 
-def cluster_data(args, data):
+def cluster_data(data):
     """Cluster data using hierarchical clustering with Hamming distance"""
     # Cluster data
-    args.logger.info("Begin clustering data")
     clusters = linkage(data.transpose(), metric="hamming", method="complete")
-    args.logger.info("End clustering data")
     return clusters
 
 
@@ -426,6 +417,7 @@ def run_anamod(args, pass_args, data, model, targets, hierarchy=None):  # pylint
     options["feature_hierarchy"] = hierarchy
     options["output_dir"] = args.output_dir
     options["seed"] = args.seed
+    options["visualize"] = args.visualize
     options["analysis_type"] = args.analysis_type
     options["condor"] = args.condor
     options["shared_filesystem"] = args.shared_filesystem

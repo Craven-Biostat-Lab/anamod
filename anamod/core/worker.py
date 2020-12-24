@@ -17,11 +17,10 @@ import h5py
 import numpy as np
 
 from anamod.core import constants
-from anamod.core.compute_p_values import compute_empirical_p_value
+from anamod.core.compute_p_values import compute_empirical_p_value, bh_procedure
 from anamod.core.losses import Loss
 from anamod.core.perturbations import PERTURBATION_FUNCTIONS, PERTURBATION_MECHANISMS
 from anamod.core.utils import get_logger
-from anamod.fdr.fdr_algorithms import bh_procedure
 
 Inputs = namedtuple("Inputs", ["data", "targets", "model"])
 

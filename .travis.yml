@@ -25,9 +25,9 @@ notifications:
 deploy:
   provider: pypi
   distributions: sdist bdist_wheel
-  user: cloudbopper
+  user: __token__
   password:
-    secure: ""
+    secure: pbyw9b71I3u3RRVZdaCzINxGnvE3vDctaz1+bXePfRDNbjIK6fYV5rSrbM47wuBGfBXPLGP7ykcVDSfJBEquMWKqxQdvpAbr5J01FMuKAT+aYNKJk8LY6h9jk4qItAwHxRtjA2UwyZ5JdlHVmxu4OMYQCY5M/Zx/PPfsxDwEgNlKHgwx34MQxLdsHW4Q1hF4X+ogzfamWA0XimeFpXDZ98DH/nfLlDWXL7Ihb3MLLLtGFNVppFdHYYE+uSAogWXYfaj48X8lc+BZtNLlraWt4Gowkwxe6JOKuV624+KvGrbNaEKcRxF5oENAklYKVhlA9h8/EDICapIG1Dg0LBYJi+6IDpSMMsh1Xz58Wne7xylnvfPhJAZvO1la+cCWeZFfc7UssnK2T1fEoFd7bG6S1u8iU7GWqM1isKjsfP1kszK7+fhBxZfrW6Tl67BpgjoCdueL9Rvcsek+NLXLlcGtP0+Eo4VjkqdpJ5Hi0ifrVQ+st+FTOiDs/4G4sY4cS8TRkSJc/63z6zf9lC7CoL8DrabIAqhrpGdZFwdDvozTPkxivXXRvBv2/8FJRUW7d5EAUCPHJGfS63Pw9ZwtffSWYOnhccVqgpfFAu9A6v3YwGJZADlSgab/KedhH/Ezo/HA8Wk6Z5LSNmwhUl8uRVKdNzB3GnXzgsoWX+nn++tnlZ0=
   on:
     tags: true
     repo: cloudbopper/anamod

@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from anamod.core import model_loader
 from anamod.simulation import simulation, run_trials
-from tests.utils import pre_test, write_logfile
+from tests.utils import pre_test, post_test, write_logfile
 
 
 # pylint: disable = protected-access, invalid-name
@@ -25,9 +25,8 @@ def test_simulation_regressor1(file_regression, tmpdir, caplog, shared_fs):
     logging.getLogger().info(f"Cmd: {cmd}")
     pass_args = cmd.split()[2:]
     with patch.object(sys, 'argv', pass_args):
-        summary = simulation.main()
-    write_logfile(caplog, output_dir)
-    file_regression.check(json.dumps(summary, indent=2), extension=".json")
+        simulation.main()
+    post_test(file_regression, caplog, output_dir)
 
 
 def test_simulation_classifier1(file_regression, tmpdir, caplog, shared_fs):
@@ -44,9 +43,8 @@ def test_simulation_classifier1(file_regression, tmpdir, caplog, shared_fs):
     logging.getLogger().info(f"Cmd: {cmd}")
     pass_args = cmd.split()[2:]
     with patch.object(sys, 'argv', pass_args):
-        summary = simulation.main()
-    write_logfile(caplog, output_dir)
-    file_regression.check(json.dumps(summary, indent=2), extension=".json")
+        simulation.main()
+    post_test(file_regression, caplog, output_dir)
 
 
 def test_simulation_classifier2(file_regression, tmpdir, caplog, shared_fs):
@@ -63,9 +61,8 @@ def test_simulation_classifier2(file_regression, tmpdir, caplog, shared_fs):
     logging.getLogger().info(f"Cmd: {cmd}")
     pass_args = cmd.split()[2:]
     with patch.object(sys, 'argv', pass_args):
-        summary = simulation.main()
-    write_logfile(caplog, output_dir)
-    file_regression.check(json.dumps(summary, indent=2), extension=".json")
+        simulation.main()
+    post_test(file_regression, caplog, output_dir)
 
 
 def test_trial_regressor1(file_regression, tmpdir, caplog, shared_fs):
