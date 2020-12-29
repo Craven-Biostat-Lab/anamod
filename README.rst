@@ -96,13 +96,13 @@ The outputs can be visualized in other ways as well. To show a table indicating 
     import subprocess
     subprocess.run(["open", f"{output_dir}/feature_importance.csv"], check=True)
 
-.. image:: images/sklearn-table.png
+.. image:: https://github.com/cloudbopper/anamod/blob/master/docs/images/sklearn-table.png?raw=true
 
 To visualize the feature importance hierarchy (since no hierarchy is provided in this case, a flat hierarchy is automatically created)::
 
     subprocess.run(["open", f"{output_dir}/feature_importance_hierarchy.png"], check=True)
 
-.. image:: images/sklearn-tree.png
+.. image:: https://github.com/cloudbopper/anamod/blob/master/docs/images/sklearn-tree.png?raw=true
 
 Analyzing a synthentic model with a hierarchy generated using hierarchical clustering::
 
@@ -130,7 +130,7 @@ Analyzing a synthentic model with a hierarchy generated using hierarchical clust
     import subprocess
     subprocess.run(["open", f"{output_dir}/feature_importance_hierarchy.png"], check=True)
 
-.. image:: images/synthetic-tree.png
+.. image:: https://github.com/cloudbopper/anamod/blob/master/docs/images/synthetic-tree.png?raw=true
 
 Analyzing a synthetic temporal model::
 
@@ -152,7 +152,7 @@ Analyzing a synthetic temporal model::
     import subprocess
     subprocess.run(["open", f"{output_dir}/feature_importance_windows.png"], check=True)
 
-.. image:: images/synthetic-windows.png
+.. image:: https://github.com/cloudbopper/anamod/blob/master/docs/images/synthetic-windows.png?raw=true
 
 The package supports parallelization using HTCondor_, which can significantly improve running time for large models.
 If HTCondor is available on your system, you can enable it by providing the "condor" keyword argument. The python
